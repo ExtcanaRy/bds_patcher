@@ -12,8 +12,6 @@ std::vector<std::string> sym_lst;
 
 int main(int argc, char **argv)
 {
-	auto binary = LIEF::ELF::Parser::parse("bedrock_server_symbols.debug");
-
 	DIR *mods_dir = opendir(PLUGIN_DIR);
 	if (!mods_dir) {
 		std::cout << "mods folder not found!" << std::endl;
@@ -28,6 +26,12 @@ int main(int argc, char **argv)
 		plugin_lst.push_back(std::string(PLUGIN_DIR) + std::string(ent->d_name));
 	}
 
+    if (!plugin_lst.size()) {
+        std::cout << "no plugin found" << std::endl;
+
+        return -1;
+    }
+
 	for (std::string str : plugin_lst) {
 		void *ret = dlopen(str.c_str(), RTLD_NOW);
 		if (!ret) {
@@ -37,10 +41,12 @@ int main(int argc, char **argv)
 		plugin_handle_lst.push_back(ret);
 	}
 
+    // call plugin "const char **reg_sym(int *)"
 	for (void *handle : plugin_handle_lst) {
 		void *ret = dlsym(handle, "_Z7reg_symPi");
 		if (!ret) {
 			std::cout << "dlsym failed! @ " << handle << std::endl;
+
 			continue;
 		}
 
@@ -50,7 +56,8 @@ int main(int argc, char **argv)
 		for (int i = 0; i < num; i++) {
 			for (std::string str : sym_lst) {
 				if (str == plugin_sym_lst[i]) {
-					goto next_loop;
+                    // if found same symbol in list
+					goto next_loop; // continue;
 				}
 			}
 
@@ -61,9 +68,20 @@ next_loop:
 		}
 	}
 
-	for (std::string str : sym_lst) {
-		std::cout << "sym: " << str << std::endl;
-	}
+	// for (std::string str : sym_lst) {
+	// 	std::cout << "sym: " << str << std::endl;
+	// }
+
+    if (!sym_lst.size()) {
+        std::cout << "no symbol found" << std::endl;
+    }
+
+    auto binary = LIEF::ELF::Parser::parse("bedrock_server_symbols.debug");
+    if (!binary) {
+        std::cout << "failed to open ELF file" << std::endl;
+
+        return -1;
+    }
 
 	std::cout << "Processing symbols..." << std::endl;
 	for (auto sym : binary->symbols()) {
